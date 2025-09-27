@@ -3,16 +3,51 @@ use crate::parsers::disasm::disassemble;
 use anyhow::{Context, Result, anyhow};
 use dotscope;
 use dotscope::prelude as ds;
+use std::collections::HashMap;
 use std::path::Path;
 
-struct Parser {}
+#[derive(Default)]
+struct Parser {
+    types: Vec<CilTypeInfo>,
+    type_map: HashMap<u32, CilType>,
+}
 
 impl Parser {
     fn new() -> Parser {
-        Parser {}
+        Parser { ..Default::default() }
     }
 
-    fn parse_body(&self, obj: &ds::CilObject, method: &ds::Method, body: &ds::MethodBody) -> Result<Option<CilFunc>> {
+    fn init_type(&mut self, typ: &ds::CilTypeRef) -> Result<CilTypeInfo> {
+        let ti = CilTypeInfo {
+            name: typ.name().unwrap(),
+        };
+
+        Ok(ti)
+    }
+
+    fn get_type(&mut self, typ: &ds::CilTypeRef) -> Result<CilType> {
+        let token = typ.token().unwrap();
+        if let Some(typ) = self.type_map.get(&token.value()) {
+            return Ok(*typ);
+        }
+
+        let new_ti = self
+            .init_type(typ)
+            .with_context(|| format!("failed to initialize type '{}'", typ.name().unwrap_or_else(String::new)))?;
+
+        let new_typ = CilType::new(self.types.len());
+        self.types.push(new_ti);
+        self.type_map.insert(token.value(), new_typ);
+
+        Ok(new_typ)
+    }
+
+    fn parse_body(
+        &mut self,
+        obj: &ds::CilObject,
+        method: &ds::Method,
+        body: &ds::MethodBody,
+    ) -> Result<Option<CilFunc>> {
         let file = obj.file();
 
         println!("\n{}\n", method.name);
@@ -33,7 +68,16 @@ impl Parser {
             let blocks = disassemble(file.data(), code_offset)
                 .with_context(|| format!("failed to parse CIL for {}()", method.name))?;
 
-            let func = CilFunc { blocks };
+            let mut locals = Vec::new();
+
+            for (_, local) in method.local_vars.iter() {
+                let typ = &local.base;
+                let typ = self.get_type(typ)?;
+
+                locals.push(CilLocal { name: None, typ });
+            }
+
+            let func = CilFunc { blocks, locals };
 
             Ok(Some(func))
         } else {
@@ -41,21 +85,33 @@ impl Parser {
         }
     }
 
-    fn parse_method(&self, obj: &ds::CilObject, _name: ds::Token, method: &ds::Method) -> Result<CilMethod> {
+    fn parse_method(&mut self, obj: &ds::CilObject, _name: ds::Token, method: &ds::Method) -> Result<CilMethod> {
         let body = match method.body.get() {
             Some(body) => self.parse_body(obj, method, body)?,
             None => None,
         };
 
+        let mut params = Vec::new();
+        for (_, arg) in method.params.iter() {
+            let typ = arg.base.get().unwrap();
+            let typ = self.get_type(typ)?;
+
+            params.push(CilParam {
+                name: arg.name.clone().unwrap(),
+                typ,
+            });
+        }
+
         let method = CilMethod {
             name: method.name.clone(),
             body,
+            params,
         };
 
         Ok(method)
     }
 
-    fn parse_assembly(&self, obj: &ds::CilObject) -> Result<CilAssembly> {
+    fn parse_assembly(&mut self, obj: &ds::CilObject) -> Result<CilFile> {
         let methods = obj
             .methods()
             .iter()
@@ -65,13 +121,16 @@ impl Parser {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let assembly = CilAssembly { methods };
+        let assembly = CilFile {
+            methods,
+            types: std::mem::take(&mut self.types),
+        };
 
         Ok(assembly)
     }
 }
 
-pub fn parse_assembly_from_file(path: &Path) -> Result<CilAssembly> {
+pub fn parse_assembly_from_file(path: &Path) -> Result<CilFile> {
     let obj = ds::CilObject::from_file(path)?;
     Parser::new().parse_assembly(&obj)
 }

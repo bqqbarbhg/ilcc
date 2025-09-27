@@ -114,7 +114,7 @@ pub enum CilTokenKind {
 impl Display for CilTokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let w = match self {
-            CilTokenKind::Unknown(v) => { return write!(f, "unk_{:02x}", v) },
+            CilTokenKind::Unknown(v) => return write!(f, "unk_{:02x}", v),
             CilTokenKind::Assembly => "assembly",
             CilTokenKind::MethodDef => "methoddef",
             CilTokenKind::MethodSpec => "methodspec",
@@ -232,15 +232,46 @@ pub struct CilBlock {
     pub insts: Vec<CilInst>,
 }
 
+index_type!(CilType);
+
+impl Display for CilType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Type({})", self.index())
+    }
+}
+
+pub struct CilTypeInfo {
+    pub name: String,
+}
+
+pub struct CilLocal {
+    pub name: Option<String>,
+    pub typ: CilType,
+}
+
+pub struct CilParam {
+    pub name: String,
+    pub typ: CilType,
+}
+
 pub struct CilFunc {
     pub blocks: Vec<CilBlock>,
+    pub locals: Vec<CilLocal>,
 }
 
 pub struct CilMethod {
     pub name: String,
     pub body: Option<CilFunc>,
+    pub params: Vec<CilParam>,
 }
 
-pub struct CilAssembly {
+pub struct CilFile {
     pub methods: Vec<CilMethod>,
+    pub types: Vec<CilTypeInfo>,
+}
+
+impl CilFile {
+    pub fn type_info(&self, typ: CilType) -> &CilTypeInfo {
+        &self.types[typ.index()]
+    }
 }

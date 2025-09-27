@@ -253,7 +253,9 @@ pub fn disassemble(image: &[u8], pos: usize) -> Result<Vec<CilBlock>> {
                 let block = &blocks[label.index()];
                 if pos == block.begin && block.end > block.begin {
                     // Ran into a following block that is being worked on
-                    blocks[cur_label.index()].finished = true;
+                    let block = &mut blocks[cur_label.index()];
+                    block.insts.push((block.end, CilInst::Branch(CilCond::Always, label)));
+                    block.finished = true;
                     break;
                 } else {
                     // Ran into the middle of a block..
