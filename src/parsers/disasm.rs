@@ -182,6 +182,8 @@ impl DecodeBlock {
             insts,
             label,
             offset: self.begin,
+            incoming: Vec::new(),
+            outgoing: Vec::new(),
         }
     }
 
@@ -370,7 +372,7 @@ pub fn disassemble(image: &[u8], pos: usize) -> Result<Vec<CilBlock>> {
         }
     }
 
-    let blocks = blocks
+    let blocks: Vec<CilBlock> = blocks
         .iter()
         .enumerate()
         .map(|(ix, block)| block.finish(CilLabel::new(ix)))

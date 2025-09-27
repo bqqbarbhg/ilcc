@@ -2,3 +2,4 @@
 
 pub mod cil;
 pub mod parsers;
+pub mod analysis;

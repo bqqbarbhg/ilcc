@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::sync::RwLock;
 
 macro_rules! index_type {
     ($name:ident) => {
@@ -230,6 +231,8 @@ pub struct CilBlock {
     pub label: CilLabel,
     pub offset: usize,
     pub insts: Vec<CilInst>,
+    pub incoming: Vec<CilLabel>,
+    pub outgoing: Vec<CilLabel>,
 }
 
 index_type!(CilType);
@@ -259,9 +262,10 @@ pub struct CilFunc {
     pub locals: Vec<CilLocal>,
 }
 
+#[derive(Default)]
 pub struct CilMethod {
     pub name: String,
-    pub body: Option<CilFunc>,
+    pub body: RwLock<Option<CilFunc>>,
     pub params: Vec<CilParam>,
 }
 

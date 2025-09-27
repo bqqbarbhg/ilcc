@@ -5,6 +5,7 @@ use dotscope;
 use dotscope::prelude as ds;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::RwLock;
 
 #[derive(Default)]
 struct Parser {
@@ -104,7 +105,7 @@ impl Parser {
 
         let method = CilMethod {
             name: method.name.clone(),
-            body,
+            body: RwLock::new(body),
             params,
         };
 
